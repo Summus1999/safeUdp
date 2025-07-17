@@ -156,7 +156,7 @@ namespace safe_udp
         gettimeofday(&process_start_time, NULL); /** 记录发送过程开始时间 */
 
         /** 如果是第一次发送，重置起始字节位置为 0 */
-        if (sliding_window_->last_packet_sent_ == -1)
+        if (sliding_window_->lastSendPacketSeq == -1)
         {
             start_byte_ = 0;
         }
@@ -174,28 +174,28 @@ namespace safe_udp
             LOG(INFO) << "SEND START  !!!!";
             LOG(INFO) << "Before the window rwnd_: " << rwnd_ << " cwnd_: " << cwnd_
                 << " window used: "
-                << sliding_window_->last_packet_sent_ -
-                sliding_window_->last_acked_packet_;
+                << sliding_window_->lastSendPacketSeq -
+                sliding_window_->lastAckedPacketSeq;
 
             /**
              * 发送数据包，直到窗口已满或没有更多数据可发送
              */
-            while (sliding_window_->last_packet_sent_ -
-                sliding_window_->last_acked_packet_ <=
+            while (sliding_window_->lastSendPacketSeq -
+                sliding_window_->lastAckedPacketSeq <=
                 std::min(rwnd_, cwnd_) &&
                 sent_count <= sent_count_limit)
             {
-                send_packet(start_byte_ + initial_seq_number_, start_byte_);
+                sendpacket(start_byte_ + initial_seq_number_, start_byte_);
 
                 /** 统计慢启动阶段发送的数据包数量 */
                 if (is_slow_start_)
                 {
-                    packet_statistics_->slow_start_packet_sent_count_++;
+                    packet_statistics_->slowStartPacketTxStatistics++;
                 }
                 else if (is_cong_avd_)
                 {
                     /** 统计拥塞避免阶段发送的数据包数量 */
-                    packet_statistics_->cong_avd_packet_sent_count_++;
+                    packet_statistics_->congAvdPacketTxStatistics++;
                 }
 
                 /** 更新下一个要发送的起始字节位置 */
@@ -229,7 +229,7 @@ namespace safe_udp
                 else if (res > 0)
                 {
                     // 收到 ACK
-                    wait_for_ack();
+                    waitForAck();
 
                     /** 检查是否进入拥塞避免阶段 */
                     if (cwnd_ >= ssthresh_)
@@ -245,8 +245,8 @@ namespace safe_udp
                     /**
                      * 如果所有已发送数据包都被确认，则根据拥塞控制算法调整窗口大小
                      */
-                    if (sliding_window_->last_acked_packet_ ==
-                        sliding_window_->last_packet_sent_)
+                    if (sliding_window_->lastAckedPacketSeq ==
+                        sliding_window_->lastSendPacketSeq)
                     {
                         if (is_slow_start_)
                         {
@@ -283,23 +283,23 @@ namespace safe_udp
                     /**
                      * 重新传输所有未被确认的数据包
                      */
-                    for (int i = sliding_window_->last_acked_packet_ + 1;
-                         i <= sliding_window_->last_packet_sent_; i++)
+                    for (int i = sliding_window_->lastAckedPacketSeq + 1;
+                         i <= sliding_window_->lastSendPacketSeq; i++)
                     {
                         int retransmit_start_byte = 0;
-                        if (sliding_window_->last_acked_packet_ != -1)
+                        if (sliding_window_->lastAckedPacketSeq != -1)
                         {
                             retransmit_start_byte =
                                 sliding_window_
                                 ->sliding_window_buffers_[sliding_window_
-                                    ->last_acked_packet_]
-                                .first_byte_ +
+                                    ->lastAckedPacketSeq]
+                                .firstByteSeq +
                                 MAX_DATA_SIZE;
                         }
                         LOG(INFO) << "Timeout Retransmit seq number"
                             << retransmit_start_byte + initial_seq_number_;
-                        retransmit_segment(retransmit_start_byte);
-                        packet_statistics_->retransmit_count_++; /** 统计重传次数 */
+                        retransmitSegment(retransmit_start_byte);
+                        packet_statistics_->retransStatistics++; /** 统计重传次数 */
                         LOG(INFO) << "Timeout: retransmission at " << retransmit_start_byte;
                     }
 
@@ -320,26 +320,26 @@ namespace safe_udp
             (process_end_time.tv_sec * 1000000 + process_end_time.tv_usec) -
             (process_start_time.tv_sec * 1000000 + process_start_time.tv_usec);
 
-        int total_packet_sent = packet_statistics_->slow_start_packet_sent_count_ +
-            packet_statistics_->cong_avd_packet_sent_count_;
+        int total_packet_sent = packet_statistics_->slowStartPacketTxStatistics +
+            packet_statistics_->congAvdPacketTxStatistics;
         LOG(INFO) << "\n";
         LOG(INFO) << "========================================";
         LOG(INFO) << "Total Time: " << (float)total_time / pow(10, 6) << " secs";
         LOG(INFO) << "Statistics: 拥塞控制--慢启动: "
-            << packet_statistics_->slow_start_packet_sent_count_
+            << packet_statistics_->slowStartPacketTxStatistics
             << " 拥塞控制--拥塞避免: "
-            << packet_statistics_->cong_avd_packet_sent_count_;
+            << packet_statistics_->congAvdPacketTxStatistics;
         LOG(INFO) << "Statistics: Slow start: "
-            << ((float)packet_statistics_->slow_start_packet_sent_count_ /
+            << ((float)packet_statistics_->slowStartPacketTxStatistics /
                 total_packet_sent) *
             100
             << "% CongAvd: "
-            << ((float)packet_statistics_->cong_avd_packet_sent_count_ /
+            << ((float)packet_statistics_->congAvdPacketTxStatistics /
                 total_packet_sent) *
             100
             << "%";
         LOG(INFO) << "Statistics: Retransmissions: "
-            << packet_statistics_->retransmit_count_;
+            << packet_statistics_->retransStatistics;
         LOG(INFO) << "========================================";
     }
 
@@ -349,7 +349,7 @@ namespace safe_udp
      * @param seq_number 数据包的序列号
      * @param start_byte 当前数据块在文件中的起始字节位置
      */
-    void UdpServer::send_packet(int seq_number, int start_byte)
+    void UdpServer::sendpacket(int seq_number, int start_byte)
     {
         bool lastPacket = false; /** 标记是否是最后一个数据包 */
         int dataLength = 0; /** 定义本次发送的数据长度 */
@@ -377,19 +377,19 @@ namespace safe_udp
          * 如果已存在已发送但未确认的数据包，并且当前要发送的是之前已经发过的包（重传）
          * 则更新该数据包的时间戳
          */
-        if (sliding_window_->last_packet_sent_ != -1 &&
+        if (sliding_window_->lastSendPacketSeq != -1 &&
             start_byte <
             sliding_window_
-            ->sliding_window_buffers_[sliding_window_->last_packet_sent_]
-            .first_byte_)
+            ->sliding_window_buffers_[sliding_window_->lastSendPacketSeq]
+            .firstByteSeq)
         {
-            for (int i = sliding_window_->last_acked_packet_ + 1;
-                 i < sliding_window_->last_packet_sent_; i++)
+            for (int i = sliding_window_->lastAckedPacketSeq + 1;
+                 i < sliding_window_->lastSendPacketSeq; i++)
             {
-                if (sliding_window_->sliding_window_buffers_[i].first_byte_ ==
+                if (sliding_window_->sliding_window_buffers_[i].firstByteSeq ==
                     start_byte)
                 {
-                    sliding_window_->sliding_window_buffers_[i].time_sent_ = time;
+                    sliding_window_->sliding_window_buffers_[i].timeSentStamp = time;
                     break;
                 }
             }
@@ -400,30 +400,30 @@ namespace safe_udp
              * 否则将新数据包信息加入滑动窗口缓冲区
              */
             SlidWinBuffer slidingWindowBuffer;
-            slidingWindowBuffer.first_byte_ = start_byte; /** 设置该数据包的起始字节位置 */
-            slidingWindowBuffer.data_length_ = dataLength; /** 设置该数据包的数据长度 */
-            slidingWindowBuffer.seq_num_ = initial_seq_number_ + start_byte; /** 设置序列号 */
+            slidingWindowBuffer.firstByteSeq = start_byte; /** 设置该数据包的起始字节位置 */
+            slidingWindowBuffer.dataLength = dataLength; /** 设置该数据包的数据长度 */
+            slidingWindowBuffer.currSeqNum = initial_seq_number_ + start_byte; /** 设置序列号 */
             struct timeval time;
             gettimeofday(&time, NULL);
-            slidingWindowBuffer.time_sent_ = time; /** 记录发送时间，用于 RTT 计算 */
+            slidingWindowBuffer.timeSentStamp = time; /** 记录发送时间，用于 RTT 计算 */
 
             /**
              * 将新的缓冲区加入滑动窗口
              */
-            sliding_window_->last_packet_sent_ =
+            sliding_window_->lastSendPacketSeq =
                 sliding_window_->AddToBuffer(slidingWindowBuffer);
         }
 
         /**
          * 从文件中读取指定范围的数据并发送
          */
-        read_file_and_send(lastPacket, start_byte, start_byte + dataLength);
+        readFileAndSend(lastPacket, start_byte, start_byte + dataLength);
     }
 
     /**
      * 等待并处理客户端的 ACK 响应。
      */
-    void UdpServer::wait_for_ack()
+    void UdpServer::waitForAck()
     {
         /** 定义接收缓冲区并初始化为 0 */
         unsigned char buffer[MAX_PACKET_SIZE];
@@ -453,29 +453,29 @@ namespace safe_udp
         /** 获取最后一个已确认的数据包 */
         SlidWinBuffer last_packet_acked_buffer =
             sliding_window_
-            ->sliding_window_buffers_[sliding_window_->last_acked_packet_];
+            ->sliding_window_buffers_[sliding_window_->lastAckedPacketSeq];
 
         /** 如果收到 ACK 标志 */
-        if (ack_segment.ack_flag_)
+        if (ack_segment.ackFlag)
         {
             /**
              * 如果收到的是当前发送窗口基地址的 ACK，
              * 则视为重复 ACK（DUP ACK）
              */
-            if (ack_segment.ack_number_ == sliding_window_->send_base_)
+            if (ack_segment.ackNum == sliding_window_->sendBaseSeq)
             {
-                LOG(INFO) << "DUP ACK Received: ack_number: " << ack_segment.ack_number_;
-                sliding_window_->dup_ack_++;
+                LOG(INFO) << "DUP ACK Received: ack_number: " << ack_segment.ackNum;
+                sliding_window_->dupAckNum++;
 
                 /**
                  * 如果连续收到 3 次重复 ACK，则触发快速重传
                  */
-                if (sliding_window_->dup_ack_ == 3)
+                if (sliding_window_->dupAckNum == 3)
                 {
-                    packet_statistics_->retransmit_count_++;
-                    LOG(INFO) << "Fast Retransmit seq_number: " << ack_segment.ack_number_;
-                    retransmit_segment(ack_segment.ack_number_ - initial_seq_number_);
-                    sliding_window_->dup_ack_ = 0;
+                    packet_statistics_->retransStatistics++;
+                    LOG(INFO) << "Fast Retransmit seq_number: " << ack_segment.ackNum;
+                    retransmitSegment(ack_segment.ackNum - initial_seq_number_);
+                    sliding_window_->dupAckNum = 0;
 
                     if (cwnd_ > 1)
                     {
@@ -488,7 +488,7 @@ namespace safe_udp
             /**
              * 如果收到新的 ACK，表示数据包已被正确接收
              */
-            else if (ack_segment.ack_number_ > sliding_window_->send_base_)
+            else if (ack_segment.ackNum > sliding_window_->sendBaseSeq)
             {
                 /**
                  * 如果处于快速恢复阶段，则调整拥塞控制参数
@@ -501,43 +501,43 @@ namespace safe_udp
                     is_slow_start_ = false;
                 }
 
-                sliding_window_->dup_ack_ = 0;
-                sliding_window_->send_base_ = ack_segment.ack_number_;
+                sliding_window_->dupAckNum = 0;
+                sliding_window_->sendBaseSeq = ack_segment.ackNum;
 
                 /**
                  * 如果是第一个已确认的数据包，则初始化相关变量
                  */
-                if (sliding_window_->last_acked_packet_ == -1)
+                if (sliding_window_->lastAckedPacketSeq == -1)
                 {
-                    sliding_window_->last_acked_packet_ = 0;
+                    sliding_window_->lastAckedPacketSeq = 0;
                     last_packet_acked_buffer =
                         sliding_window_
-                        ->sliding_window_buffers_[sliding_window_->last_acked_packet_];
+                        ->sliding_window_buffers_[sliding_window_->lastAckedPacketSeq];
                 }
 
-                ack_number = last_packet_acked_buffer.seq_num_ +
-                    last_packet_acked_buffer.data_length_;
+                ack_number = last_packet_acked_buffer.currSeqNum +
+                    last_packet_acked_buffer.dataLength;
 
                 /**
                  * 更新已确认的数据包信息
                  */
-                while (ack_number < ack_segment.ack_number_)
+                while (ack_number < ack_segment.ackNum)
                 {
-                    sliding_window_->last_acked_packet_++;
+                    sliding_window_->lastAckedPacketSeq++;
                     last_packet_acked_buffer =
                         sliding_window_
-                        ->sliding_window_buffers_[sliding_window_->last_acked_packet_];
-                    ack_number = last_packet_acked_buffer.seq_num_ +
-                        last_packet_acked_buffer.data_length_;
+                        ->sliding_window_buffers_[sliding_window_->lastAckedPacketSeq];
+                    ack_number = last_packet_acked_buffer.currSeqNum +
+                        last_packet_acked_buffer.dataLength;
                 }
 
                 /**
                  * 计算 RTT 和超时时间
                  */
-                struct timeval startTime = last_packet_acked_buffer.time_sent_;
+                struct timeval startTime = last_packet_acked_buffer.timeSentStamp;
                 struct timeval endTime;
                 gettimeofday(&endTime, NULL);
-                calculate_rtt_and_time(startTime, endTime);
+                calculateRttAndTime(startTime, endTime);
             }
         }
     }
@@ -548,7 +548,7 @@ namespace safe_udp
      * @param start_time RTT 开始时间
      * @param end_time RTT 结束时间
      */
-    void UdpServer::calculate_rtt_and_time(struct timeval start_time,
+    void UdpServer::calculateRttAndTime(struct timeval start_time,
                                            struct timeval end_time)
     {
         /** 如果开始时间为 0，则不进行计算 */
@@ -582,24 +582,24 @@ namespace safe_udp
      *
      * @param index_number 要重传的数据段的起始字节位置
      */
-    void UdpServer::retransmit_segment(int index_number)
+    void UdpServer::retransmitSegment(int index_number)
     {
         /** 查找滑动窗口中需要重传的数据包并更新发送时间 */
-        for (int i = sliding_window_->last_acked_packet_ + 1;
-             i < sliding_window_->last_packet_sent_; i++)
+        for (int i = sliding_window_->lastAckedPacketSeq + 1;
+             i < sliding_window_->lastSendPacketSeq; i++)
         {
-            if (sliding_window_->sliding_window_buffers_[i].first_byte_ ==
+            if (sliding_window_->sliding_window_buffers_[i].firstByteSeq ==
                 index_number)
             {
                 struct timeval time;
                 gettimeofday(&time, NULL);
-                sliding_window_->sliding_window_buffers_[i].time_sent_ = time;
+                sliding_window_->sliding_window_buffers_[i].timeSentStamp = time;
                 break;
             }
         }
 
         /** 从指定位置读取文件数据并发送 */
-        read_file_and_send(false, index_number, index_number + MAX_DATA_SIZE);
+        readFileAndSend(false, index_number, index_number + MAX_DATA_SIZE);
     }
 
     /**
@@ -609,7 +609,7 @@ namespace safe_udp
      * @param start_byte 数据块在文件中的起始字节位置
      * @param end_byte 数据块在文件中的结束字节位置
      */
-    void UdpServer::read_file_and_send(bool fin_flag, int start_byte,
+    void UdpServer::readFileAndSend(bool fin_flag, int start_byte,
                                        int end_byte)
     {
         int datalength = end_byte - start_byte;
@@ -637,16 +637,16 @@ namespace safe_udp
 
         /** 创建数据段对象并设置相关字段 */
         DataSegment* data_segment = new DataSegment();
-        data_segment->seq_number_ = start_byte + initial_seq_number_;
-        data_segment->ack_number_ = 0;
-        data_segment->ack_flag_ = false;
-        data_segment->fin_flag_ = fin_flag;
-        data_segment->length_ = datalength;
+        data_segment->seqNumber = start_byte + initial_seq_number_;
+        data_segment->ackNum = 0;
+        data_segment->ackFlag = false;
+        data_segment->finflag = fin_flag;
+        data_segment->dataLength = datalength;
         data_segment->data_ = fileData;
 
         /** 发送数据段 */
-        send_data_segment(data_segment);
-        LOG(INFO) << "Packet sent:seq number: " << data_segment->seq_number_;
+        sendDataSegment(data_segment);
+        LOG(INFO) << "Packet sent:seq number: " << data_segment->seqNumber;
 
         /** 释放分配的内存 */
         free(fileData);
@@ -692,7 +692,7 @@ namespace safe_udp
      *
      * @param data_segment 要发送的数据段对象
      */
-    void UdpServer::send_data_segment(DataSegment* data_segment)
+    void UdpServer::sendDataSegment(DataSegment* data_segment)
     {
         /** 将数据段序列化为字节数组 */
         char* datagramChars = data_segment->SerializeToCharArray();

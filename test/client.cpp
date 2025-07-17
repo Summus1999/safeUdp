@@ -26,29 +26,29 @@ int main(int argc, char *argv[]) {
   std::string server_ip(argv[1]);
   std::string port_num(argv[2]);
   std::string file_name(argv[3]);
-  udp_client->receiver_window_ = atoi(argv[4]);
+  udp_client->receiverWindow = atoi(argv[4]);
 
   int control_param = atoi(argv[5]);
   LOG(INFO) << "control_param: " << control_param;
   if (control_param == 0) {
-    udp_client->is_delay_ = false;
-    udp_client->is_packet_drop_ = false;
+    udp_client->isDelay = false;
+    udp_client->isPacketDrop = false;
   } else if (control_param == 1) {
-    udp_client->is_packet_drop_ = true;
-    udp_client->is_delay_ = false;
+    udp_client->isPacketDrop = true;
+    udp_client->isDelay = false;
   } else if (control_param == 2) {
-    udp_client->is_packet_drop_ = false;
-    udp_client->is_delay_ = true;
+    udp_client->isPacketDrop = false;
+    udp_client->isDelay = true;
   } else if (control_param == 3) {
-    udp_client->is_packet_drop_ = true;
-    udp_client->is_delay_ = true;
+    udp_client->isPacketDrop = true;
+    udp_client->isDelay = true;
   } else {
     LOG(ERROR) << "Invalid argument, should be range in 0-3 !!!";
     return 0;
   }
 
   int drop_percentage = atoi(argv[6]);
-  udp_client->prob_value_ = drop_percentage;
+  udp_client->probValue = drop_percentage;
 
   udp_client->CreateSocketAndServerConnection(server_ip, port_num);
   udp_client->SendFileRequest(file_name);

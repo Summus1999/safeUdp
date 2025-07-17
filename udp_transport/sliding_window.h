@@ -19,12 +19,12 @@ public:
   /** 存储滑动窗口中的数据包缓冲区 */
   std::vector<SlidWinBuffer> sliding_window_buffers_;
   /** 最后一个发送的数据包的序列号 */
-  int last_packet_sent_;
+  int lastSendPacketSeq;
   /** 最后一个被确认的数据包的序列号 */
-  int last_acked_packet_;
+  int lastAckedPacketSeq;
   /** 成功发送且已经确认的数据包中最小的序列号 */
-  int send_base_;
+  int sendBaseSeq;
   /** 重复确认的数量 */
-  int dup_ack_;
+  int dupAckNum;
 };
 } // namespace safe_udp

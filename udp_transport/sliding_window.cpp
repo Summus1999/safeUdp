@@ -7,10 +7,10 @@ namespace safe_udp
  */
 SlidingWindow::SlidingWindow()
 {
-  last_packet_sent_ = -1; /**< 最后一个已发送的数据包索引 */
-  last_acked_packet_ = -1; /**< 最后一个被确认的数据包索引 */
-  send_base_ = -1; /**< 当前发送窗口的基序号 */
-  dup_ack_ = 0; /**< 重复 ACK 计数，用于快速重传判断 */
+  lastSendPacketSeq = -1; /**< 最后一个已发送的数据包索引 */
+  lastAckedPacketSeq = -1; /**< 最后一个被确认的数据包索引 */
+  sendBaseSeq = -1; /**< 当前发送窗口的基序号 */
+  dupAckNum = 0; /**< 重复 ACK 计数，用于快速重传判断 */
 }
 
 /**

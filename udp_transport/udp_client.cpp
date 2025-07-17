@@ -15,9 +15,9 @@ namespace safe_udp
      */
     UdpClient::UdpClient()
     {
-        last_in_order_packet_ = -1; /**< 最后一个按序到达的数据包索引 */
-        last_packet_received_ = -1; /**< 最后一个接收到的数据包索引 */
-        fin_flag_received_ = false; /**< 是否接收到结束标志 FIN */
+        lastPacketInOrder = -1; /**< 最后一个按序到达的数据包索引 */
+        lastPacketReceived = -1; /**< 最后一个接收到的数据包索引 */
+        isFinFlagReceived = false; /**< 是否接收到结束标志 FIN */
     }
 
     /**
@@ -29,11 +29,11 @@ namespace safe_udp
         int n;
         int next_seq_expected;
         int segments_in_between = 0;
-        initial_seq_number_ = 67; /**< 初始化起始序列号 */
+        initSeqNum = 67; /**< 初始化起始序列号 */
 
-        if (receiver_window_ == 0)
+        if (receiverWindow == 0)
         {
-            receiver_window_ = 100; /**< 设置默认接收窗口大小 */
+            receiverWindow = 100; /**< 设置默认接收窗口大小 */
         }
 
         /**
@@ -86,28 +86,28 @@ namespace safe_udp
             std::unique_ptr<DataSegment> data_segment = std::make_unique<DataSegment>();
             data_segment->DeserializeToDataSegment(buffer, n);
 
-            LOG(INFO) << "packet received with seq_number_:"
-                << data_segment->seq_number_;
+            LOG(INFO) << "packet received with seqNumber:"
+                << data_segment->seqNumber;
 
             /**
              * 模拟随机丢包
              */
-            if (is_packet_drop_&& rand() %100 < prob_value_
+            if (isPacketDrop&& rand() %100 < probValue
             )
             {
                 LOG(INFO) << "Dropping this packet with seq "
-                    << data_segment->seq_number_;
+                    << data_segment->seqNumber;
                 continue;
             }
 
             /**
              * 模拟随机延迟
              */
-            if (is_delay_&& rand() %100 < prob_value_
+            if (isDelay&& rand() %100 < probValue
             )
             {
                 int sleep_time = (rand() % 10) * 1000;
-                LOG(INFO) << "Delaying this packet with seq " << data_segment->seq_number_
+                LOG(INFO) << "Delaying this packet with seq " << data_segment->seqNumber
                     << " for " << sleep_time << "us";
                 usleep(sleep_time);
             }
@@ -115,21 +115,21 @@ namespace safe_udp
             /**
              * 确定下一个期望的序列号
              */
-            if (last_in_order_packet_ == -1)
+            if (lastPacketInOrder == -1)
             {
-                next_seq_expected = initial_seq_number_;
+                next_seq_expected = initSeqNum;
             }
             else
             {
-                next_seq_expected = data_segments_[last_in_order_packet_].seq_number_ +
-                    data_segments_[last_in_order_packet_].length_;
+                next_seq_expected = data_segments_[lastPacketInOrder].seqNumber +
+                    data_segments_[lastPacketInOrder].dataLength;
             }
 
             /**
              * 处理旧数据包，直接发送 ACK
              */
-            if (next_seq_expected > data_segment->seq_number_ &&
-                !data_segment->fin_flag_)
+            if (next_seq_expected > data_segment->seqNumber &&
+                !data_segment->finflag)
             {
                 send_ack(next_seq_expected);
                 continue;
@@ -139,13 +139,13 @@ namespace safe_udp
              * 计算当前数据段在缓冲区中的索引
              */
             segments_in_between =
-                (data_segment->seq_number_ - next_seq_expected) / MAX_DATA_SIZE;
-            int this_segment_index = last_in_order_packet_ + segments_in_between + 1;
+                (data_segment->seqNumber - next_seq_expected) / MAX_DATA_SIZE;
+            int this_segment_index = lastPacketInOrder + segments_in_between + 1;
 
             /**
              * 判断是否超出接收窗口，超出则丢弃
              */
-            if (this_segment_index - last_in_order_packet_ > receiver_window_)
+            if (this_segment_index - lastPacketInOrder > receiverWindow)
             {
                 LOG(INFO) << "Packet dropped " << this_segment_index;
                 continue;
@@ -154,10 +154,10 @@ namespace safe_udp
             /**
              * 检查是否收到结束标志 FIN
              */
-            if (data_segment->fin_flag_)
+            if (data_segment->finflag)
             {
                 LOG(INFO) << "Fin flag received !!!";
-                fin_flag_received_ = true;
+                isFinFlagReceived = true;
             }
 
             /**
@@ -168,14 +168,14 @@ namespace safe_udp
             /**
              * 写入文件并更新已接收的最后一个有序包索引
              */
-            for (int i = last_in_order_packet_ + 1; i <= last_packet_received_; i++)
+            for (int i = lastPacketInOrder + 1; i <= lastPacketReceived; i++)
             {
-                if (data_segments_[i].seq_number_ != -1)
+                if (data_segments_[i].seqNumber != -1)
                 {
                     if (file.is_open())
                     {
                         file << data_segments_[i].data_;
-                        last_in_order_packet_ = i;
+                        lastPacketInOrder = i;
                     }
                 }
                 else
@@ -187,9 +187,9 @@ namespace safe_udp
             /**
              * 如果所有数据包已接收且收到 FIN，结束接收
              */
-            if (fin_flag_received_&& last_in_order_packet_
+            if (isFinFlagReceived&& lastPacketInOrder
             ==
-            last_packet_received_
+            lastPacketReceived
             )
             {
                 break;
@@ -198,8 +198,8 @@ namespace safe_udp
             /**
              * 发送 ACK 确认当前最后一个有序包
              */
-            send_ack(data_segments_[last_in_order_packet_].seq_number_ +
-                data_segments_[last_in_order_packet_].length_);
+            send_ack(data_segments_[lastPacketInOrder].seqNumber +
+                data_segments_[lastPacketInOrder].dataLength);
 
             /**
              * 清空缓冲区准备下一次接收
@@ -238,11 +238,11 @@ namespace safe_udp
          * 创建一个新的 ACK 数据段
          */
         DataSegment* ack_segment = new DataSegment();
-        ack_segment->ack_flag_ = true; /**< 设置 ACK 标志 */
-        ack_segment->ack_number_ = ackNumber; /**< 设置确认号 */
-        ack_segment->fin_flag_ = false; /**< 不是 FIN 包 */
-        ack_segment->length_ = 0; /**< 数据长度为 0 */
-        ack_segment->seq_number_ = 0; /**< 序列号为 0（ACK 包不需要） */
+        ack_segment->ackFlag = true; /**< 设置 ACK 标志 */
+        ack_segment->ackNum = ackNumber; /**< 设置确认号 */
+        ack_segment->finflag = false; /**< 不是 FIN 包 */
+        ack_segment->dataLength = 0; /**< 数据长度为 0 */
+        ack_segment->seqNumber = 0; /**< 序列号为 0（ACK 包不需要） */
 
         /**
          * 序列化数据段为字节数组
@@ -314,12 +314,12 @@ namespace safe_udp
      */
     void UdpClient::insert(int index, const DataSegment& data_segment)
     {
-        if (index > last_packet_received_)
+        if (index > lastPacketReceived)
         {
             /**
              * 如果索引大于最后一个接收包索引，则逐个填充空段并添加新段
              */
-            for (int i = last_packet_received_ + 1; i <= index; i++)
+            for (int i = lastPacketReceived + 1; i <= index; i++)
             {
                 if (i == index)
                 {
@@ -331,7 +331,7 @@ namespace safe_udp
                     data_segments_.push_back(data_segment);
                 }
             }
-            last_packet_received_ = index; /**< 更新最后收到的数据包索引 */
+            lastPacketReceived = index; /**< 更新最后收到的数据包索引 */
         }
         else
         {

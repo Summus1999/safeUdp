@@ -1,19 +1,11 @@
-/**
- * udp_server.h
- * UDP 服务器头文件，定义了 UdpServer 类，用于实现基于 UDP 的可靠文件传输。
- */
-
 #pragma once
-
-/**
- * 系统头文件和 C++ 标准库头文件
- */
 #include <netinet/in.h>     // 定义 sockaddr_in 结构体等网络相关数据结构
 #include <unistd.h>         // 提供 POSIX 操作系统 API 的访问，如 close()
 #include <fstream>          // 文件流，用于读写文件
 #include <iostream>         // 输入输出流，用于打印调试信息等
 #include <memory>           // 智能指针支持，如 unique_ptr
 #include <string>           // 使用 std::string 存储字符串数据
+/*自定义头文件实现数据*/
 #include "data_segment.h"       // 自定义头文件：数据分段类定义
 #include "packet_statistics.h"  // 自定义头文件：统计发送/接收的数据包信息
 #include "sliding_window.h"     // 自定义头文件：滑动窗口机制实现
@@ -106,21 +98,21 @@ class UdpServer {
    * @param seq_number 序列号
    * @param start_byte 起始字节位置
    */
-  void send_packet(int seq_number, int start_byte);
+  void sendpacket(int seq_number, int start_byte);
 
   /**
    * 计算 RTT（往返时间）及超时时间
    * @param start_time 请求开始时间
    * @param end_time 响应结束时间
    */
-  void calculate_rtt_and_time(struct timeval start_time,
+  void calculateRttAndTime(struct timeval start_time,
                               struct timeval end_time);
 
   /**
    * 重传指定索引的数据段
    * @param index_number 数据段索引
    */
-  void retransmit_segment(int index_number);
+  void retransmitSegment(int index_number);
 
   /**
    * 从文件中读取数据并发送
@@ -128,17 +120,17 @@ class UdpServer {
    * @param start_byte 起始字节
    * @param end_byte 结束字节
    */
-  void read_file_and_send(bool fin_flag, int start_byte, int end_byte);
+  void readFileAndSend(bool fin_flag, int start_byte, int end_byte);
 
   /**
    * 发送数据段
    * @param data_segment 待发送的数据段对象
    */
-  void send_data_segment(DataSegment *data_segment);
+  void sendDataSegment(DataSegment *data_segment);
 
   /**
    * 等待客户端 ACK 回复
    */
-  void wait_for_ack();
+  void waitForAck();
 };
 }  // namespace safe_udp
