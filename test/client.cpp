@@ -1,15 +1,12 @@
 #pragma once
-
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <iostream>
-
-#include "udp_client.h"
-
 #include <glog/logging.h>
+#include "udp_client.h"
 
 int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
